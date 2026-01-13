@@ -23,6 +23,7 @@ into a single high-compression archive for efficient storage and reuse.
   * 30 vCPUs
   * High network throughput
     made this instance ideal for large-scale dataset downloading and compression.
+  * Attatch filesystem
 
 ---
 
@@ -163,6 +164,16 @@ api.upload_file(
 )
 EOF
 ```
+
+# Option: Copy to filesystem(if you attached) 
+
+Please take it into account you will be charged based on your disk size in the filesystem. (maybe 20USD per month for 70GB storage)
+```bash
+rsync -ah --progress \
+  /home/ubuntu/LLaVA-Instruction-Dataset-Comperession/images.tar.zst \
+  /home/ubuntu/virginia-filesystem/
+```
+
 
 ## Result
 
