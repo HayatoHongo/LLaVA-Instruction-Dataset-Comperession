@@ -1,75 +1,174 @@
-# LLaVA-Instruction-Dataset-Comperession
+# LLaVA-Instruction-Dataset-Compression
 
-# Aim
+## Aim
 
-Compressed images for llava_v1_5_mix665k.json.
+This repository provides **compressed image datasets** used by
+`llava_v1_5_mix665k.json`.
 
-https://huggingface.co/datasets/liuhaotian/LLaVA-Instruct-150K 
+Original instruction dataset:
+[https://huggingface.co/datasets/liuhaotian/LLaVA-Instruct-150K](https://huggingface.co/datasets/liuhaotian/LLaVA-Instruct-150K)
 
-Used Lambda Cloud SSH A10 GPU instance. 
-We don't use GPU, but the large disk, 30 vCPUs and fast download for AI training were ideal for this task.
+The goal is to download, organize, and compress all related image datasets
+into a single high-compression archive for efficient storage and reuse.
 
+---
 
-The first downloading is fast thanks to boosting
+## Environment
 
-```
-train2017.zip 19GB
+* **Cloud provider**: Lambda Cloud
+* **Instance**: A10 GPU instance, 0.75$/hour
+* **Note**: GPU was *not* used
+
+  * Large disk capacity
+  * 30 vCPUs
+  * High network throughput
+    made this instance ideal for large-scale dataset downloading and compression.
+
+---
+
+## Dataset Downloads
+
+### COCO (train2017)
+
+Initial downloads were very fast thanks to network boosting.
+
+```bash
 wget http://images.cocodataset.org/zips/train2017.zip
-ls -lh train2017.zip
+ls -lh train2017.zip   # ~19GB
 unzip train2017.zip
 mkdir -p coco
 mv train2017 coco/
 ```
 
-but it seemed like I ran out of boosting budget.
-slow download. it took about an hour.
+After this step, the download speed dropped significantly (likely due to
+boosting quota exhaustion), and subsequent downloads took much longer
+(around 1 hour each).
 
+---
 
-#suddenly the downloading speed slowed down.
-#sudo apt-get update
-#sudo apt-get install -y aria2
+### GQA
 
-images.zip 21GB
-wget https://downloads.cs.stanford.edu/nlp/data/gqa/images.zip 
-ls -lh images.zip
+```bash
+wget https://downloads.cs.stanford.edu/nlp/data/gqa/images.zip
+ls -lh images.zip      # ~21GB
 unzip images.zip
 mkdir -p gqa
 mv images gqa/
-mv images.zip qga_images.zip
+mv images.zip gqa_images.zip
+```
 
+---
 
-boost download revived.
+### TextVQA
 
+Download speed recovered.
+
+```bash
 wget https://dl.fbaipublicfiles.com/textvqa/images/train_val_images.zip
 ls -lh train_val_images.zip
 unzip train_val_images.zip
 mkdir -p textvqa
 mv train_images textvqa/
+```
 
+---
 
-images.zip 9.1G
+### Visual Genome (VG)
+
+#### VG_100K
+
+```bash
 wget https://cs.stanford.edu/people/rak248/VG_100K_2/images.zip
-ls -lh images.zip
+ls -lh images.zip      # ~9.1GB
 unzip images.zip
 mkdir -p vg
 mv VG_100K vg/
 mv images.zip vg_images.zip
+```
 
+#### VG_100K_2
 
-images2.zip 5.1G
+```bash
 wget https://cs.stanford.edu/people/rak248/VG_100K_2/images2.zip
-ls -lh images2.zip
+ls -lh images2.zip     # ~5.1GB
 unzip images2.zip
 mv VG_100K_2 vg/
+```
 
-ocr_vqa_images_llava_v15.zip: 8.4GB
+---
+
+### OCR-VQA (LLaVA v1.5)
+
+```bash
 wget https://huggingface.co/datasets/weizhiwang/llava_v15_instruction_images/resolve/main/ocr_vqa_images_llava_v15.zip
-ls -lh ocr_vqa_images_llava_v15.zip
+ls -lh ocr_vqa_images_llava_v15.zip   # ~8.4GB
 unzip ocr_vqa_images_llava_v15.zip
 mkdir -p ocr_vqa
 mv images ocr_vqa/
+```
 
+---
 
+## Final Directory Structure
+
+After all downloads and extraction:
+
+```
+coco/
+gqa/
+textvqa/
+vg/
+ocr_vqa/
+```
+
+---
+
+## Compression
+
+All image datasets are compressed into a single archive using **zstd** with
+maximum compression and multithreading:
+
+```bash
 tar -I 'zstd -19 -T0' \
   -cf images.tar.zst \
   coco gqa ocr_vqa textvqa vg
+```
+
+* `-19` : maximum compression level
+* `-T0` : use all available CPU cores
+
+---
+
+## Upload to HuggingFace
+```bash
+pip install -U huggingface_hub
+```
+
+```bash
+export HF_TOKEN="hf...."
+echo $HF_TOKEN
+```
+
+```bash
+python - << 'EOF'
+from huggingface_hub import HfApi
+
+api = HfApi()
+
+api.upload_file(
+    path_or_fileobj="images.tar.zst",
+    path_in_repo="images.tar.zst",
+    repo_id="HayatoHongo/LLaVA-Instruct-150K",
+    repo_type="dataset",
+)
+EOF
+```
+
+## Result
+
+* A single highly compressed archive: `images.tar.zst`
+* Suitable for:
+
+  * Dataset sharing
+  * Fast rehydration on new machines
+  * Reduced storage and transfer costs
