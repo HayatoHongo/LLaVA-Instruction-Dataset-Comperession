@@ -150,20 +150,184 @@ export HF_TOKEN="hf...."
 echo $HF_TOKEN
 ```
 
+HFAPI and so on does not have meaning!
+
+---
+
+# ✅ Hugging Face Dataset に 70GB 画像を 5GB shard でアップロードする完全手順（確定版）
+
+---
+
+## 0️⃣ 前提ディレクトリ
+
 ```bash
-python - << 'EOF'
-from huggingface_hub import HfApi
-
-api = HfApi()
-
-api.upload_file(
-    path_or_fileobj="images.tar.zst",
-    path_in_repo="images.tar.zst",
-    repo_id="HayatoHongo/LLaVA-Instruct-150K",
-    repo_type="dataset",
-)
-EOF
+~/LLaVA-Instruction-Dataset-Comperession/
+└── images.tar.zst          # 元の 70GB ファイル
 ```
+
+---
+
+## 1️⃣ 70GB ファイルを 5GB shard に分割
+
+```bash
+split -b 5G images.tar.zst images.tar.zst.part_
+```
+
+生成例：
+
+```
+images.tar.zst.part_aa
+images.tar.zst.part_ab
+...
+images.tar.zst.part_an
+```
+
+---
+
+## 2️⃣ 必要ツールをインストール
+
+```bash
+sudo apt update
+sudo apt install -y git-lfs
+```
+
+---
+
+## 3️⃣ git-lfs を初期化（最初に1回）
+
+```bash
+git lfs install
+```
+
+確認：
+
+```bash
+git lfs version
+```
+
+---
+
+## 4️⃣ Hugging Face Dataset リポジトリを clone
+
+```bash
+git clone https://huggingface.co/datasets/HayatoHongoEveryonesAI/LLaVA-Instruction-665k-Images-Dataset
+```
+
+---
+
+## 5️⃣ Dataset リポジトリに移動
+
+```bash
+cd LLaVA-Instruction-665k-Images-Dataset
+```
+
+---
+
+## 6️⃣ LFS トラッキング設定（最重要）
+
+```bash
+git lfs track "*.part_*"
+git lfs track "*.zst"
+```
+
+---
+
+## 7️⃣ .gitattributes を commit
+
+```bash
+git add .gitattributes
+git commit -m "Track large dataset shards with git-lfs"
+```
+
+※ 初回のみ git identity が必要：
+
+```bash
+git config --global user.email "hayato.hongo@everyonesai.org"
+git config --global user.name "HayatoHongoEveryonesAI"
+```
+
+---
+
+## 8️⃣ shard 用ディレクトリを作成
+
+```bash
+mkdir -p data/images
+```
+
+---
+
+## 9️⃣ shard を repo 内にコピー（安全・高速）
+
+```bash
+rsync -av --progress \
+  ../images.tar.zst.part_* \
+  data/images/
+```
+
+---
+
+## 🔟 shard を add → commit
+
+```bash
+git add data/images/images.tar.zst.part_*
+git commit -m "Add LLaVA image shards (5GB parts)"
+```
+
+---
+
+## 1️⃣1️⃣ 5GB 超 LFS を明示的に許可（HF 固有・必須）
+
+```bash
+hf lfs-enable-largefiles .
+```
+
+※ **これを忘れると必ず push 失敗**
+
+---
+---
+
+## 1️⃣2️⃣  push（切れてもOK、完走するまで繰り返す）
+
+```bash
+git push
+```
+
+* `broken pipe` が出ても **正常**
+* 再度：
+
+```bash
+git push
+```
+
+---
+
+## ✅ 成功ログ（これが出たら終了）
+
+```text
+Uploading LFS objects: 100% (14/14), 72 GB | XXX MB/s, done.
+To https://huggingface.co/datasets/HayatoHongoEveryonesAI/LLaVA-Instruction-665k-Images-Dataset
+   xxxx..yyyy  main -> main
+```
+
+---
+
+## 🔍 最終確認（任意）
+
+```bash
+git lfs ls-files
+```
+
+---
+
+# 🧠 重要ポイント（再発防止）
+
+* **HFAPI は使わない**
+* **5GB shard が安定上限**
+* `hf lfs-enable-largefiles .` は **必須**
+* `git push` は **再実行前提**
+* Web UI は信用しない
+
+---
 
 # Option: Copy to filesystem(if you attached) 
 
